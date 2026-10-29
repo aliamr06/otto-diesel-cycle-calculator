@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Otto & Diesel Cycle Calculator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#131b30;--panel2:#18233c;--text:#edf2ff;--muted:#aab6d3;--accent:#7c9cff;--line:#2a3859;--good:#6ee7b7;--warn:#fbbf24;--bad:#fca5a5}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#182748 0,#0b1020 55%);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+header{padding:32px 20px 20px;max-width:1200px;margin:auto}h1{margin:0 0 8px;font-size:clamp(1.8rem,4vw,2.7rem);letter-spacing:-.04em}header p{color:var(--muted);max-width:800px;margin:0}
+main{max-width:1200px;margin:auto;padding:0 20px 40px;display:grid;grid-template-columns:350px 1fr;gap:18px}.panel{background:rgba(19,27,48,.92);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 14px 40px #0002}.panel h2{font-size:1.1rem;margin:0 0 14px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.inputrow{display:grid;grid-template-columns:1fr 92px;gap:5px}.unit-select{padding:8px 5px;font-size:.82rem}.field{display:flex;flex-direction:column;gap:4px}.field label{font-size:.78rem;color:var(--muted)}input,select{width:100%;background:#0c1428;color:var(--text);border:1px solid #344361;border-radius:9px;padding:10px;font:inherit;min-width:0}input:focus,select:focus{outline:2px solid var(--accent);border-color:transparent}.hint{color:var(--muted);font-size:.78rem;margin:10px 0}.actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}button{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--accent);color:#081126}button.secondary{background:#253451;color:var(--text)}.right{display:grid;gap:18px;align-content:start}.status{padding:10px 12px;border-radius:10px;background:#0c1428;color:var(--muted);margin-bottom:12px;white-space:pre-wrap}.status.error{color:var(--bad)}.status.ok{color:var(--good)}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.metric{background:var(--panel2);padding:12px;border-radius:12px;border:1px solid var(--line)}.metric span{display:block;color:var(--muted);font-size:.76rem}.metric strong{display:block;font-size:1.1rem;margin-top:3px;overflow-wrap:anywhere}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}th:first-child,td:first-child{text-align:left}th{font-size:.78rem;color:var(--muted);font-weight:600}.tabs{display:flex;gap:8px;margin-bottom:10px}.tabs button{background:#253451;color:var(--muted)}.tabs button.active{background:var(--accent);color:#081126}.chartbox{height:350px;position:relative}.small{font-size:.82rem;color:var(--muted)}.section-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.pill{font-size:.72rem;color:var(--good);border:1px solid #276b59;border-radius:999px;padding:4px 8px}.footer{max-width:1200px;margin:0 auto;padding:0 20px 30px;color:var(--muted);font-size:.8rem}
+@media(max-width:900px){main{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.fields{grid-template-columns:1fr 1fr}.panel{padding:15px}.chartbox{height:290px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Otto & Diesel Cycle Calculator</h1>
+  <p>Interactive ideal air-standard cycle solver. Enter the parameters you know, leave unknowns at 0, and explore the P–v and T–s diagrams as results update.</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>Cycle & known parameters</h2>
+    <div class="field" style="margin-bottom:12px"><label for="cycle">Cycle type</label><select id="cycle"><option value="otto">Otto cycle</option><option value="diesel">Diesel cycle</option></select></div>
+    <div class="fields" id="fields"></div>
+    <h2 style="margin-top:18px">Specific volume at each state</h2><div class="fields" id="volumeFields"></div>
+    <p class="hint">Use 0 for unknowns. Choose units beside each input. Specific-volume inputs can also determine compression/cut-off ratios when enough volumes are entered. Air properties are treated as constant.</p>
+    <div class="actions"><button id="calculate">Calculate</button><button class="secondary" id="example">Load example</button><button class="secondary" id="clear">Clear</button></div>
+    <p class="small">Model: ideal air-standard cycle; Cp = 1.005 and Cv = 0.718 kJ/(kg·K). The solver reports variables that cannot be uniquely determined.</p>
+  </section>
+  <div class="right">
+    <section class="panel">
+      <div class="section-title"><h2>Results</h2><span class="pill">Live calculation</span></div>
+      <div id="status" class="status">Enter known parameters and select Calculate.</div>
+      <div class="metrics">
+        <div class="metric"><span>Heat supplied</span><strong id="qin">—</strong></div>
+        <div class="metric"><span>Heat rejected</span><strong id="qout">—</strong></div>
+        <div class="metric"><span>Net work</span><strong id="work">—</strong></div>
+        <div class="metric"><span>Thermal efficiency</span><strong id="eff">—</strong></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>State</th><th>Pressure (kPa)</th><th>Temperature (K)</th><th>Specific volume (m³/kg)</th></tr></thead><tbody id="states"></tbody></table></div>
+      <p class="small" id="ratios"></p>
+    </section>
+    <section class="panel">
+      <div class="section-title"><h2 id="chartTitle">P–v diagram</h2><div class="tabs"><button class="active" data-chart="pv">P–v</button><button data-chart="ts">T–s</button></div></div>
+      <div class="chartbox"><canvas id="chart"></canvas></div>
+      <p class="small" id="chartNote">Idealized process curves, generated from the calculated state properties.</p>
+    </section>
+    <section class="panel">
+      <h2>How to read the result</h2>
+      <p class="small">The four states are: 1→2 isentropic compression, 2→3 heat addition, 3→4 isentropic expansion, and 4→1 heat rejection. Otto adds heat at constant volume; Diesel adds heat at constant pressure.</p>
+      <p class="small">If the inputs do not uniquely define the cycle, the calculator lists the missing properties. Use additional independent values to determine them. Values must describe a physically consistent engine cycle.</p>
+    </section>
+  </div>
+</main>
+<div class="footer">Educational calculator only. Real engines differ from ideal air-standard cycles. Chart.js is loaded from a CDN, so an internet connection is required to render the charts.</div>
+<script>
+const CP=1.005, CV=0.718, K=CP/CV, EPS=1e-8;
+const defs=[
+  {id:'P1',label:'Pressure P₁',idx:0,type:'pressure'},{id:'P2',label:'Pressure P₂',idx:1,type:'pressure'},
+  {id:'P3',label:'Pressure P₃',idx:2,type:'pressure'},{id:'P4',label:'Pressure P₄',idx:3,type:'pressure'},
+  {id:'T1',label:'Temperature T₁',idx:4,type:'temperature'},{id:'T2',label:'Temperature T₂',idx:5,type:'temperature'},
+  {id:'T3',label:'Temperature T₃',idx:6,type:'temperature'},{id:'T4',label:'Temperature T₄',idx:7,type:'temperature'},
+  {id:'r',label:'Compression ratio r',idx:8,type:'ratio'},{id:'rc',label:'Cut-off ratio r₍c₎',idx:9,type:'ratio'},
+  {id:'qinIn',label:'Known heat supplied qᵢₙ',idx:10,type:'heat'},{id:'qoutIn',label:'Known heat rejected qₒᵤₜ',idx:11,type:'heat'}
+];
+const unitOptions={pressure:[['kPa','kPa'],['bar','bar'],['MPa','MPa'],['atm','atm'],['psi','psi']],temperature:[['K','K'],['C','°C'],['F','°F']],heat:[['kJ/kg','kJ/kg'],['J/kg','J/kg'],['kcal/kg','kcal/kg'],['Btu/lb','Btu/lb']],ratio:[['-','dimensionless']]};
+const volumeUnits=[['m3kg','m³/kg'],['Lkg','L/kg'],['cm3g','cm³/g'],['ft3lb','ft³/lb']];
+function toBase(v,type,u){if(!v)return 0;if(type==='pressure')return v*({'kPa':1,'bar':100,'MPa':1000,'atm':101.325,'psi':6.894757} [u]);if(type==='temperature')return u==='C'?v+273.15:u==='F'?(v-32)*5/9+273.15:v;if(type==='heat')return v*({'kJ/kg':1,'J/kg':0.001,'kcal/kg':4.184,'Btu/lb':2.326} [u]);if(type==='volume')return v*({'m3kg':1,'Lkg':0.001,'cm3g':0.001,'ft3lb':0.06242796}[u]);return v;}
+function fromBase(v,type,u){if(v==null||!Number.isFinite(v))return null;if(type==='pressure')return v/({'kPa':1,'bar':100,'MPa':1000,'atm':101.325,'psi':6.894757}[u]);if(type==='temperature')return u==='C'?v-273.15:u==='F'?(v-273.15)*9/5+32:v;if(type==='heat')return v/({'kJ/kg':1,'J/kg':0.001,'kcal/kg':4.184,'Btu/lb':2.326}[u]);if(type==='volume')return v/({'m3kg':1,'Lkg':0.001,'cm3g':0.001,'ft3lb':0.06242796}[u]);return v;}
+function selectedUnit(id){const el=$('unit_'+id);return el?el.value:'-';}
+function inputBase(id,type){return toBase(getInput(id),type,selectedUnit(id));}
+
+const $=id=>document.getElementById(id);
+let chart=null, chartType='pv', last=null;
+function renderFields(){
+  $('fields').innerHTML=defs.filter(d=>d.id!=='rc'||$('cycle').value==='diesel').map(d=>{const opts=unitOptions[d.type];return `<div class="field"><label for="${d.id}">${d.label}</label><div class="inputrow"><input id="${d.id}" type="number" step="any" value="0" /><select class="unit-select" id="unit_${d.id}" aria-label="${d.label} unit">${opts.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></div></div>`}).join('');
+  $('volumeFields').innerHTML=[1,2,3,4].map(i=>`<div class="field"><label for="v${i}">Specific volume v${i}</label><div class="inputrow"><input id="v${i}" type="number" step="any" value="0" /><select class="unit-select" id="unit_v${i}" aria-label="Specific volume v${i} unit">${volumeUnits.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></div></div>`).join('');
+}
+function addEq(eq,n,terms,b=0){let a=Array(n).fill(0);terms.forEach(([i,v])=>a[i]+=v);eq.push({a,b});}
+function addKnown(eq,n,i,v){if(v>0)addEq(eq,n,[[i,1]],Math.log(v));}
+function solve(eq,n){
+  let a=eq.map(e=>[...e.a,e.b]), m=a.length, row=0, piv=[];
+  for(let col=0;col<n&&row<m;col++){
+    let best=row;for(let i=row+1;i<m;i++)if(Math.abs(a[i][col])>Math.abs(a[best][col]))best=i;
+    if(Math.abs(a[best][col])<EPS)continue;
+    [a[row],a[best]]=[a[best],a[row]];
+    let p=a[row][col];for(let j=col;j<=n;j++)a[row][j]/=p;
+    for(let i=0;i<m;i++){if(i===row)continue;let f=a[i][col];for(let j=col;j<=n;j++)a[i][j]-=f*a[row][j];}
+    piv.push(col);row++;
+  }
+  for(let i=0;i<m;i++){let mx=0;for(let j=0;j<n;j++)mx=Math.max(mx,Math.abs(a[i][j]));if(mx<EPS&&Math.abs(a[i][n])>1e-6)return {ok:false};}
+  let v=Array(n).fill(null), known=Array(n).fill(false);
+  for(let i=0;i<row;i++){let p=piv[i],unique=true;for(let j=0;j<n;j++)if(j!==p&&Math.abs(a[i][j])>EPS)unique=false;if(unique){v[p]=Math.exp(a[i][n]);known[p]=true;}}
+  return {ok:true,v,known};
+}
+function equations(diesel){
+ const n=diesel?10:9,eq=[];
+ addEq(eq,n,[[5,1],[4,-1],[8,-(K-1)]]);
+ addEq(eq,n,[[1,1],[0,-1],[8,-K]]);
+ if(diesel){addEq(eq,n,[[2,1],[1,-1]]);addEq(eq,n,[[6,1],[5,-1],[9,-1]]);}
+ else addEq(eq,n,[[6,1],[5,-1],[2,-1],[1,1]]);
+ if(diesel){addEq(eq,n,[[7,1],[6,-1],[9,-(K-1)],[8,K-1]]);addEq(eq,n,[[3,1],[2,-1],[9,-K],[8,K]]);}
+ else {addEq(eq,n,[[7,1],[6,-1],[8,K-1]]);addEq(eq,n,[[3,1],[2,-1],[8,K]]);}
+ addEq(eq,n,[[4,1],[7,-1],[0,-1],[3,1]]);
+ return eq;
+}
+function getInput(id){const el=$(id);return el?Number(el.value)||0:0;}
+function fmt(v,d=2){return v==null||!Number.isFinite(v)?'—':v.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:0});}
+function calc(){
+ const diesel=$('cycle').value==='diesel',n=diesel?10:9;
+ const input=Array(10).fill(0);
+ defs.slice(0,10).forEach(d=>{if(d.idx<n)input[d.idx]=inputBase(d.id,d.type)});
+ const qin=inputBase('qinIn','heat'),qout=inputBase('qoutIn','heat');
+ const vInput=[1,2,3,4].map(i=>toBase(getInput('v'+i),'volume',selectedUnit('v'+i)));
+ if(vInput[0]>0&&vInput[1]>0&&input[8]===0)input[8]=vInput[0]/vInput[1];
+ if(diesel&&vInput[2]>0&&vInput[1]>0&&input[9]===0)input[9]=vInput[2]/vInput[1];
+ if(!diesel&&vInput[1]>0&&vInput[2]>0&&Math.abs(vInput[1]-vInput[2])>Math.max(1e-8,vInput[1]*0.01)){showError('For an Otto cycle, v₂ and v₃ must be equal.');return;}
+ if([...input,qin,qout,...vInput].some(x=>!Number.isFinite(x)||x<0)){showError('Inputs must be finite and non-negative. Use 0 for unknowns.');return;}
+ for(let i=0;i<8;i++)if(input[i]!==0&&input[i]<=0){showError('Pressures and temperatures must be positive, or 0 if unknown.');return;}
+ if(input[8]!==0&&input[8]<=1){showError('Compression ratio r must be greater than 1.');return;}
+ if(diesel&&input[9]!==0&&input[9]<1){showError('Diesel cut-off ratio rc must be at least 1.');return;}
+ let eq=equations(diesel);for(let i=0;i<n;i++)addKnown(eq,n,i,input[i]);
+ let sol;
+ for(let it=0;it<10;it++){
+   sol=solve(eq,n);if(!sol.ok){showError('Inputs contradict the ideal cycle equations. Check the values and units.');return;}
+   let added=false;
+   if(qin>0&&sol.known[5]&&!sol.known[6]){let t3=sol.v[5]+qin/(diesel?CP:CV);if(t3>0){addKnown(eq,n,6,t3);added=true;}}
+   if(qout>0&&sol.known[4]&&!sol.known[7]){let t4=sol.v[4]+qout/CV;if(t4>0){addKnown(eq,n,7,t4);added=true;}}
+   if(!added)break;
+ }
+ sol=solve(eq,n);if(!sol.ok){showError('Inputs are inconsistent.');return;}
+ // Verify supplied heat against fully known temperatures.
+ if(sol.known[4]&&sol.known[5]&&sol.known[6]&&qin>0){
+   let q=(diesel?CP:CV)*(sol.v[6]-sol.v[5]);if(Math.abs(q-qin)>Math.max(.05,Math.abs(qin)*.01)){showError('Known q in conflicts with the entered/calculated temperatures.');return;}
+ }
+ if(sol.known[4]&&sol.known[7]&&qout>0){
+   let q=CV*(sol.v[7]-sol.v[4]);if(Math.abs(q-qout)>Math.max(.05,Math.abs(qout)*.01)){showError('Known q out conflicts with the entered/calculated temperatures.');return;}
+ }
+ const [P1,P2,P3,P4,T1,T2,T3,T4,r,rc]=sol.v;
+ const full=[P1,P2,P3,P4,T1,T2,T3,T4].every((v,i)=>sol.known[i]);
+ $('status').className='status '+(full?'ok':'');
+ $('status').textContent=full?'All four states are determined.':`Insufficient independent information to determine: ${[
+ 'P₁','P₂','P₃','P₄','T₁','T₂','T₃','T₄','compression ratio r','cut-off ratio rc'].filter((x,i)=>i<n&&!sol.known[i]).join(', ')}. Add more known parameters.`;
+ const energy=full;
+ let qinCalc=null,qoutCalc=null,work=null,eff=null;
+ if(energy){
+   qinCalc=(diesel?CP:CV)*(T3-T2);qoutCalc=CV*(T4-T1);work=qinCalc-qoutCalc;
+   eff=qinCalc>0?100*work/qinCalc:null;
+   if(qinCalc<=0||qoutCalc<0||work<0){$('status').className='status error';$('status').textContent+=' Warning: values do not represent a normal positive-work engine cycle.';}
+ }
+ $('qin').textContent=energy?fmt(qinCalc)+' kJ/kg':(qin?fmt(qin)+'*':'—');
+ $('qout').textContent=energy?fmt(qoutCalc)+' kJ/kg':(qout?fmt(qout)+'*':'—');
+ $('work').textContent=energy?fmt(work)+' kJ/kg':'—';
+ $('eff').textContent=energy&&eff!=null?fmt(eff)+'%':'—';
+ const normalized=sol.known[8]&&(!diesel||sol.known[9])?[r,1,diesel?rc:1,r]:[null,null,null,null];
+ const actualVols=vInput.map((v,i)=>v>0?v:normalized[i]);
+ $('states').innerHTML=Array.from({length:4},(_,i)=>`<tr><td>${i+1}</td><td>${sol.known[i]?fmt(sol.v[i]):'Undetermined'}</td><td>${sol.known[i+4]?fmt(sol.v[i+4]):'Undetermined'}</td><td>${actualVols[i]==null?'—':fmt(actualVols[i])+(vInput.every(v=>v>0)?'':' (relative)')}</td></tr>`).join('');
+ $('ratios').textContent=`Compression ratio r = ${sol.known[8]?fmt(r):'undetermined'}${diesel?' · Cut-off ratio rc = '+(sol.known[9]?fmt(rc):'undetermined'):''}. *A supplied heat value is shown when cycle states are not yet sufficient to independently calculate it.`;
+ last={diesel,sol,energy,qinCalc,qoutCalc,vInput};
+ drawChart();
+}
+function showError(msg){$('status').className='status error';$('status').textContent=msg;}
+function linspace(a,b,n=45){return Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));}
+function drawChart(){
+ if(!last)return;
+ if(chart)chart.destroy();
+ const {diesel,sol,vInput}=last, k=K;
+ const all=[0,1,2,3,4,5,6,7].every(i=>sol.known[i]), r=sol.v[8],rc=sol.v[9];
+ if(!all||!sol.known[8]||(diesel&&!sol.known[9])){
+   $('chartNote').textContent='Provide enough information to determine all four state pressures and temperatures, plus required cycle ratios, to draw the complete cycle.';
+   chart=new Chart($('chart'),{type:'scatter',data:{datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});return;
+ }
+ const [P1,P2,P3,P4,T1,T2,T3,T4]=sol.v;
+ const hasActualVolumes=vInput&&vInput.every(v=>v>0); const V1=hasActualVolumes?vInput[0]:r,V2=hasActualVolumes?vInput[1]:1,V3=hasActualVolumes?vInput[2]:(diesel?rc:1),V4=hasActualVolumes?vInput[3]:r;
+ let sets=[];
+ if(chartType==='pv'){
+   const v12=linspace(V1,V2),v34=linspace(V3,V4);
+   sets=[
+    {label:'1 → 2 Compression',data:v12.map(v=>({x:v,y:P1*Math.pow(V1/v,k)})),borderColor:'#7c9cff',backgroundColor:'#7c9cff',showLine:true,pointRadius:0},
+    {label:'2 → 3 Heat addition',data:[{x:V2,y:P2},{x:V3,y:P3}],borderColor:'#fbbf24',backgroundColor:'#fbbf24',showLine:true,pointRadius:3},
+    {label:'3 → 4 Expansion',data:v34.map(v=>({x:v,y:P3*Math.pow(V3/v,k)})),borderColor:'#6ee7b7',backgroundColor:'#6ee7b7',showLine:true,pointRadius:0},
+    {label:'4 → 1 Heat rejection',data:[{x:V4,y:P4},{x:V1,y:P1}],borderColor:'#fda4af',backgroundColor:'#fda4af',showLine:true,pointRadius:3},
+    {label:'States',data:[{x:V1,y:P1},{x:V2,y:P2},{x:V3,y:P3},{x:V4,y:P4}],borderColor:'#fff',backgroundColor:'#fff',showLine:false,pointRadius:5}
+   ];
+   $('chartTitle').textContent='Pressure–specific volume (P–v)';
+ }else{
+   // Relative entropy, s1=0; s2=s1; s3-s2=qin/Tmean approximated by exact ideal-gas entropy change.
+   const s1=0,s2=0;
+   const s3=diesel?CP*Math.log(T3/T2):CV*Math.log(T3/T2);
+   const s4=s3;
+   const c12=linspace(0,1).map(t=>({x:s1,y:T1*Math.pow(T2/T1,t)}));
+   const c34=linspace(0,1).map(t=>({x:s3,y:T3*Math.pow(T4/T3,t)}));
+   sets=[
+    {label:'1 → 2 Compression',data:[{x:s1,y:T1},{x:s2,y:T2}],borderColor:'#7c9cff',backgroundColor:'#7c9cff',showLine:true,pointRadius:3},
+    {label:'2 → 3 Heat addition',data:linspace(0,1).map(t=>({x:s2+(s3-s2)*t,y:diesel?T2*Math.pow(T3/T2,t):T2+(T3-T2)*t})),borderColor:'#fbbf24',backgroundColor:'#fbbf24',showLine:true,pointRadius:0},
+    {label:'3 → 4 Expansion',data:[{x:s3,y:T3},{x:s4,y:T4}],borderColor:'#6ee7b7',backgroundColor:'#6ee7b7',showLine:true,pointRadius:3},
+    {label:'4 → 1 Heat rejection',data:linspace(0,1).map(t=>({x:s4*(1-t),y:T4+(T1-T4)*t})),borderColor:'#fda4af',backgroundColor:'#fda4af',showLine:true,pointRadius:0},
+    {label:'States',data:[{x:s1,y:T1},{x:s2,y:T2},{x:s3,y:T3},{x:s4,y:T4}],borderColor:'#fff',backgroundColor:'#fff',showLine:false,pointRadius:5}
+   ];
+   $('chartTitle').textContent='Temperature–relative entropy (T–s)';
+ }
+ $('chartNote').textContent=chartType==='pv'?(hasActualVolumes?'P–v diagram using your entered specific volumes (m³/kg).':'P–v diagram with normalized volume V₂ = 1. Otto heat addition is vertical; Diesel heat addition is horizontal.'):'T–s diagram with relative entropy referenced to state 1. Isentropic processes are vertical.';
+ chart=new Chart($('chart'),{type:'scatter',data:{datasets:sets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},interaction:{mode:'nearest',intersect:false},plugins:{legend:{labels:{color:'#dce5ff',usePointStyle:true,boxWidth:8}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: (${fmt(c.parsed.x,3)}, ${fmt(c.parsed.y,3)})`}}},scales:{x:{type:'linear',title:{display:true,text:chartType==='pv'?'Relative specific volume (V₂ = 1)':'Relative entropy (kJ/kg·K)',color:'#aab6d3'},ticks:{color:'#aab6d3'},grid:{color:'#26334e'}},y:{title:{display:true,text:chartType==='pv'?'Pressure (kPa)':'Temperature (K)',color:'#aab6d3'},ticks:{color:'#aab6d3'},grid:{color:'#26334e'}}}}});
+}
+$('cycle').addEventListener('change',()=>{renderFields();calc();});
+$('calculate').addEventListener('click',calc);
+$('example').addEventListener('click',()=>{
+ const vals={P1:100,T1:300,r:8,T3:1800,P2:0,P3:0,P4:0,T2:0,T4:0,rc:2,qinIn:0,qoutIn:0,v1:0,v2:0,v3:0,v4:0};
+ Object.entries(vals).forEach(([id,v])=>{if($(id))$(id).value=v;});calc();
+});
+$('clear').addEventListener('click',()=>{defs.forEach(d=>{if($(d.id))$(d.id).value=0;});[1,2,3,4].forEach(i=>{if($('v'+i))$('v'+i).value=0;});calc();});
+document.querySelectorAll('[data-chart]').forEach(b=>b.addEventListener('click',()=>{chartType=b.dataset.chart;document.querySelectorAll('[data-chart]').forEach(x=>x.classList.toggle('active',x===b));drawChart();}));
+renderFields();
+</script>
+</body>
+</html>
